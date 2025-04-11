@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 
@@ -8,11 +9,11 @@ import (
 )
 
 type TaskRepository interface {
-	Create(task *entity.Task) (int64, error)
-	GetByID(id int64) (*entity.Task, error)
-	List() ([]*entity.Task, error)
-	Update(task *entity.Task) error
-	Delete(id int64) error
+	Create(ctx context.Context, task *entity.Task) (int64, error)
+	GetByID(ctx context.Context, id int64) (*entity.Task, error)
+	List(ctx context.Context, ) ([]*entity.Task, error)
+	Update(ctx context.Context, task *entity.Task) error
+	Delete(ctx context.Context, id int64) error
 }
 
 // TaskRepositoryImpl Репозиторий для работы с заданиями
@@ -24,7 +25,7 @@ func NewTaskRepositoryImpl(db *sql.DB) *TaskRepositoryImpl {
 	return &TaskRepositoryImpl{db: db}
 }
 
-func (r *TaskRepositoryImpl) Create(task *entity.Task) (int64, error) {
+func (r *TaskRepositoryImpl) Create(ctx context.Context, task *entity.Task) (int64, error) {
 	res, err := r.db.Exec(
 		"INSERT INTO tasks (title, description, reward, assignee, created_by) VALUES (?, ?, ?, ?, ?)",
 		task.Title, task.Description, task.Reward, task.Assignee, task.CreatedBy,
@@ -35,7 +36,7 @@ func (r *TaskRepositoryImpl) Create(task *entity.Task) (int64, error) {
 	return res.LastInsertId()
 }
 
-func (r *TaskRepositoryImpl) GetByID(id int64) (*entity.Task, error) {
+func (r *TaskRepositoryImpl) GetByID(ctx context.Context, id int64) (*entity.Task, error) {
 	var task entity.Task
 	err := r.db.QueryRow(
 		"SELECT id, title, description, reward, assignee, created_by, created_at FROM tasks WHERE id = ?",
@@ -50,7 +51,7 @@ func (r *TaskRepositoryImpl) GetByID(id int64) (*entity.Task, error) {
 	return &task, nil
 }
 
-func (r *TaskRepositoryImpl) List() ([]*entity.Task, error) {
+func (r *TaskRepositoryImpl) List(ctx context.Context, ) ([]*entity.Task, error) {
 	rows, err := r.db.Query("SELECT id, title, description, reward, assignee, created_by, created_at FROM tasks ORDER BY created_at DESC")
 	if err != nil {
 		return nil, err
@@ -69,7 +70,7 @@ func (r *TaskRepositoryImpl) List() ([]*entity.Task, error) {
 	return tasks, nil
 }
 
-func (r *TaskRepositoryImpl) Update(task *entity.Task) error {
+func (r *TaskRepositoryImpl) Update(ctx context.Context, task *entity.Task) error {
 	_, err := r.db.Exec(
 		"UPDATE tasks SET title = ?, description = ?, reward = ?, assignee = ? WHERE id = ?",
 		task.Title, task.Description, task.Reward, task.Assignee, task.ID,
@@ -77,7 +78,7 @@ func (r *TaskRepositoryImpl) Update(task *entity.Task) error {
 	return err
 }
 
-func (r *TaskRepositoryImpl) Delete(id int64) error {
+func (r *TaskRepositoryImpl) Delete(ctx context.Context, id int64) error {
 	_, err := r.db.Exec("DELETE FROM tasks WHERE id = ?", id)
 	return err
 }
