@@ -15,10 +15,11 @@ type Config struct {
 	}
 
 	Database struct {
-		Path string `env:"PATH" envDefault:"./data/tasks.db"`
+		Path string `env:"DB_PATH" envDefault:"./data/tasks.db"`
 	}
 }
 
 func New() (*Config, error) {
-	return env.ParseAs[*Config]()
+	cfg, err := env.ParseAs[Config]()
+	return &cfg, err
 }

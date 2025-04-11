@@ -9,7 +9,7 @@ import (
 )
 
 type TaskRepository interface {
-	Create(ctx context.Context, task *entity.Task) (int64, error)
+	Create(ctx context.Context, task *entity.Task) error
 	GetByID(ctx context.Context, id int64) (*entity.Task, error)
 	List(ctx context.Context, ) ([]*entity.Task, error)
 	Update(ctx context.Context, task *entity.Task) error
@@ -25,16 +25,16 @@ func NewTaskRepositoryImpl(db *sql.DB) *TaskRepositoryImpl {
 	return &TaskRepositoryImpl{db: db}
 }
 
-func (r *TaskRepositoryImpl) Create(ctx context.Context, task *entity.Task) (int64, error) {
-	res, err := r.db.ExecContext(
+func (r *TaskRepositoryImpl) Create(ctx context.Context, task *entity.Task) error {
+	_, err := r.db.ExecContext(
 		ctx,
 		"INSERT INTO tasks (title, description, reward, assignee, created_by) VALUES (?, ?, ?, ?, ?)",
 		task.Title, task.Description, task.Reward, task.Assignee, task.CreatedBy,
 	)
 	if err != nil {
-		return 0, err
+		return err
 	}
-	return res.LastInsertId()
+	return nil
 }
 
 func (r *TaskRepositoryImpl) GetByID(ctx context.Context, id int64) (*entity.Task, error) {

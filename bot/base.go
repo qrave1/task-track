@@ -12,11 +12,12 @@ import (
 type Botik struct {
 	bot      *tgbotapi.BotAPI
 	taskRepo repository.TaskRepository
+	chatRepo repository.ChatRepository
 
 	updates tgbotapi.UpdatesChannel
 }
 
-func NewBotik(cfg *config.Config, taskRepo repository.TaskRepository) (*Botik, error) {
+func NewBotik(cfg *config.Config, taskRepo repository.TaskRepository, chatRepo repository.ChatRepository) (*Botik, error) {
 	bot, err := tgbotapi.NewBotAPI(cfg.Telegram.Token)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create bot: %w", err)
@@ -25,7 +26,12 @@ func NewBotik(cfg *config.Config, taskRepo repository.TaskRepository) (*Botik, e
 	bot.Debug = cfg.Debug
 	slog.Info("Authorized on account", "username", bot.Self.UserName)
 
-	return &Botik{bot: bot, taskRepo: taskRepo}, nil
+	return &Botik{
+		bot:      bot,
+		taskRepo: taskRepo,
+		chatRepo: chatRepo,
+		updates:  nil,
+	}, nil
 }
 
 func (b *Botik) Start() {
@@ -33,4 +39,6 @@ func (b *Botik) Start() {
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 	b.updates = b.bot.GetUpdatesChan(u)
+
+	go b.handleUpdates()
 }

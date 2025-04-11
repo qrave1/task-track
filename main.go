@@ -1,16 +1,17 @@
-package task_track
+package main
 
 import (
 	"database/sql"
 	"log/slog"
-	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
+
+	_ "modernc.org/sqlite"
 
 	"github.com/qrave1/task-track/bot"
 	"github.com/qrave1/task-track/config"
+	"github.com/qrave1/task-track/repository"
 )
 
 func migrateDB(db *sql.DB) error {
@@ -23,6 +24,11 @@ func migrateDB(db *sql.DB) error {
 			assignee TEXT NOT NULL,
 			created_by INTEGER NOT NULL,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		);
+		
+		CREATE TABLE IF NOT EXISTS chats (
+		    id INTEGER PRIMARY KEY,
+		    users TEXT NOT NULL
 		)
 	`)
 
@@ -39,32 +45,34 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Создание и запуск бота
-	b, err := bot.NewFamilyTasksBot(cfg)
+	db, err := sql.Open("sqlite", cfg.Database.Path)
 	if err != nil {
-		slog.Error("Failed to create bot", slog.String("error", err.Error()))
-		os.Exit(1)
-	}
-	defer b.Stop()
-
-	if err := b.Start(); err != nil {
-		slog.Error("Failed to start bot", slog.String("error", err.Error()))
+		slog.Error("failed to open database", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
 
-	// Ожидание завершения (в режиме webhook)
-	if !cfg.Debug {
-		slog.Info("Server started", "URL", cfg.Telegram.Webhook.URL)
-		err = http.ListenAndServe(":"+strconv.Itoa(cfg.Telegram.Webhook.Port), nil)
-		if err != nil {
-			slog.Error("failed to start webhook mode", slog.String("error", err.Error()))
-			os.Exit(1)
-		}
-	} else {
-		// В режиме polling просто ждем сигнала завершения
-		sigChan := make(chan os.Signal, 1)
-		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-		<-sigChan
-		slog.Info("Shutting down...")
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+
+	err = migrateDB(db)
+	if err != nil {
+		slog.Error("failed to migrate database", slog.String("error", err.Error()))
+		os.Exit(1)
 	}
+
+	taskRepo := repository.NewTaskRepositoryImpl(db)
+	chatRepo := repository.NewChatRepositoryImpl(db)
+
+	b, err := bot.NewBotik(cfg, taskRepo, chatRepo)
+	if err != nil {
+		slog.Error("failed to create bot", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+
+	b.Start()
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	<-sigChan
+	slog.Info("Shutting down...")
 }
